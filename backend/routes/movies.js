@@ -3,6 +3,7 @@ const Movie = require('../models/Movie');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const localStore = require('../lib/store');
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, '../uploads');
@@ -37,8 +38,8 @@ const upload = multer({
 // GET ALL MOVIES
 router.get('/', async (req, res) => {
   try {
-    const movies = await Movie.find();
-    res.status(200).json(movies.reverse()); // Newest content first
+    const movies = req.app.locals.useLocalStore ? localStore.movies.all() : (await Movie.find()).reverse();
+    res.status(200).json(movies); // Newest content first
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -47,12 +48,14 @@ router.get('/', async (req, res) => {
 // GET RANDOM FEATURED HERO VIDEO
 router.get('/random', async (req, res) => {
   try {
-    const count = await Movie.countDocuments();
-    if (count === 0) {
+    const localMovie = req.app.locals.useLocalStore ? localStore.movies.random() : null;
+    if (req.app.locals.useLocalStore && !localMovie) {
       return res.status(404).json({ message: "No movies found in database." });
     }
-    const randomIdx = Math.floor(Math.random() * count);
-    const randomMovie = await Movie.findOne().skip(randomIdx);
+    if (localMovie) return res.status(200).json(localMovie);
+    const count = await Movie.countDocuments();
+    if (count === 0) return res.status(404).json({ message: "No movies found in database." });
+    const randomMovie = await Movie.findOne().skip(Math.floor(Math.random() * count));
     res.status(200).json(randomMovie);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -76,11 +79,11 @@ router.post('/', upload.fields([
     if (req.files) {
       if (req.files['video']) {
         const videoFile = req.files['video'][0];
-        finalVideoUrl = `http://localhost:5000/uploads/${videoFile.filename}`;
+        finalVideoUrl = `${req.protocol}://${req.get('host')}/uploads/${videoFile.filename}`;
       }
       if (req.files['thumbnail']) {
         const thumbnailFile = req.files['thumbnail'][0];
-        finalThumbnailUrl = `http://localhost:5000/uploads/${thumbnailFile.filename}`;
+        finalThumbnailUrl = `${req.protocol}://${req.get('host')}/uploads/${thumbnailFile.filename}`;
       }
     }
 
@@ -88,7 +91,8 @@ router.post('/', upload.fields([
       return res.status(400).json({ error: "Both a video file/URL and thumbnail file/URL are required." });
     }
 
-    const newMovie = new Movie({
+    if (!title?.trim()) return res.status(400).json({ error: 'A movie title is required.' });
+    const movieData = {
       title,
       description,
       thumbnailUrl: finalThumbnailUrl,
@@ -96,9 +100,10 @@ router.post('/', upload.fields([
       genre,
       duration,
       isSeries: isSeries === 'true' || isSeries === true
-    });
-
-    const savedMovie = await newMovie.save();
+    };
+    const savedMovie = req.app.locals.useLocalStore
+      ? localStore.movies.create(movieData)
+      : await new Movie(movieData).save();
     res.status(201).json(savedMovie);
   } catch (err) {
     res.status(500).json({ error: err.message });

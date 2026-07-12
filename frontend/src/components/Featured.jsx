@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_URL } from '../api';
 
 export default function Featured() {
   const [content, setContent] = useState(null);
@@ -7,7 +8,7 @@ export default function Featured() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('http://localhost:5000/api/movies/random')
+    fetch(`${API_URL}/api/movies/random`)
       .then(res => {
         if (!res.ok) throw new Error('No movies');
         return res.json();

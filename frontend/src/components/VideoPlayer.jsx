@@ -1,8 +1,10 @@
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 
 export default function VideoPlayer() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [playbackError, setPlaybackError] = useState('');
   // Expecting video URL to be passed via React Router state context
   const videoUrl = location.state?.videoUrl || "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4";
 
@@ -19,7 +21,14 @@ export default function VideoPlayer() {
         src={videoUrl} 
         controls 
         autoPlay 
+        playsInline
+        onError={() => setPlaybackError('This video could not be loaded. Please go back and try another title.')}
       />
+      {playbackError && (
+        <p className="absolute bottom-8 mx-4 rounded bg-red-950/90 border border-red-700 px-4 py-3 text-sm text-red-100">
+          {playbackError}
+        </p>
+      )}
     </div>
   );
 }

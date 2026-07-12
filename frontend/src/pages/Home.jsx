@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Featured from '../components/Featured';
+import { API_URL } from '../api';
 
 export default function Home({ setUser }) {
   const [movies, setMovies] = useState([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -19,7 +21,7 @@ export default function Home({ setUser }) {
   const user = JSON.parse(localStorage.getItem('user'));
 
   const fetchMovies = () => {
-    fetch('http://localhost:5000/api/movies')
+    fetch(`${API_URL}/api/movies`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) {
@@ -28,6 +30,14 @@ export default function Home({ setUser }) {
       })
       .catch(err => console.log('Error fetching movies:', err));
   };
+
+  const matchingMovies = movies.filter((movie) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return [movie.title, movie.genre, movie.description]
+      .filter(Boolean)
+      .some((value) => value.toLowerCase().includes(query));
+  });
 
   useEffect(() => {
     fetchMovies();
@@ -54,7 +64,7 @@ export default function Home({ setUser }) {
     if (videoFile) formData.append('video', videoFile);
 
     try {
-      const response = await fetch('http://localhost:5000/api/movies', {
+      const response = await fetch(`${API_URL}/api/movies`, {
         method: 'POST',
         body: formData, // Automatically sets correct multipart header
       });
@@ -121,7 +131,35 @@ export default function Home({ setUser }) {
 
       {/* Movies List Section */}
       <div id="browse-section" className="px-12 mt-8">
-        <h2 className="text-2xl font-semibold mb-6">Latest Content</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-2xl font-semibold">
+              {searchQuery ? `Results for “${searchQuery}”` : 'Latest Content'}
+            </h2>
+            {searchQuery && <p className="text-sm text-gray-400 mt-1">{matchingMovies.length} related video{matchingMovies.length === 1 ? '' : 's'} found</p>}
+          </div>
+          <div className="relative w-full sm:w-80">
+            <span className="absolute left-3 top-2.5 text-gray-400">⌕</span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by movie name or genre"
+              aria-label="Search movies"
+              className="w-full bg-zinc-900 border border-gray-600 rounded py-2 pl-9 pr-9 text-sm text-white placeholder-gray-400 outline-none focus:border-white"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Clear search"
+                className="absolute right-3 top-2 text-gray-400 hover:text-white"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </div>
         
         {movies.length === 0 ? (
           <div className="border border-dashed border-gray-800 rounded-lg p-16 text-center text-gray-500">
@@ -133,9 +171,13 @@ export default function Home({ setUser }) {
               Upload Your First Movie
             </button>
           </div>
+        ) : matchingMovies.length === 0 ? (
+          <div className="border border-dashed border-gray-800 rounded-lg p-12 text-center text-gray-400">
+            No movies found for “{searchQuery}”. Try a title, genre, or description.
+          </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-            {movies.map((movie) => (
+            {matchingMovies.map((movie) => (
               <div 
                 key={movie._id}
                 onClick={() => navigate('/watch', { state: { videoUrl: movie.videoUrl } })}

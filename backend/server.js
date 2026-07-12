@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const localStore = require('./lib/store');
 
 dotenv.config();
 const app = express();
@@ -23,27 +23,20 @@ async function startServer() {
   let mongoUri = process.env.MONGO_URI;
 
   try {
+    if (!mongoUri) throw new Error('MONGO_URI is not configured');
     console.log("Attempting to connect to MongoDB Atlas...");
     // 4-second timeout to avoid long hangs
     await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 4000 });
     console.log("Successfully connected to MongoDB Atlas!");
   } catch (err) {
-    console.warn("\n>>> [WARNING] Could not connect to MongoDB Atlas cluster.");
-    console.warn(">>> Spawning a local, temporary in-memory MongoDB database instead...\n");
-    
-    try {
-      const mongoServer = await MongoMemoryServer.create();
-      const inMemoryUri = mongoServer.getUri();
-      await mongoose.connect(inMemoryUri);
-      console.log("Successfully connected to local in-memory database!");
-    } catch (memErr) {
-      console.error("Critical error: Failed to start in-memory database server:", memErr.message);
-      process.exit(1);
-    }
+    console.warn(`MongoDB is unavailable (${err.message}). Using persistent local data in backend/data/store.json.`);
+    localStore.initialise();
+    app.locals.useLocalStore = true;
   }
 
-  app.listen(5000, () => {
-    console.log('Server running on port 5000');
+  const port = Number(process.env.PORT) || 5001;
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
   });
 }
 
