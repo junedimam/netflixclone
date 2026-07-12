@@ -34,6 +34,7 @@ jobs:
         env:
           NODE_ENV: test
           MONGOMS_DOWNLOAD_DIR: ${{ secrets.test }}
+
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@v4
         env:
