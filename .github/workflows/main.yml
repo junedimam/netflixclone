@@ -1,42 +1,63 @@
-name: Node.js CI with SonarQube
+name: CI Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - develop
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+      - develop
 
 jobs:
-  build-and-test:
+  build-test-security:
+    name: Build, Test & Security
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        node-version: [20]
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node.js ${{ matrix.node-version }}
+        
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          cache: npm
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: npm ci
 
+      - name: Run ESLint
+        run: npm run lint
+        
       - name: Run Tests
-        run: npm test
-        env:
-          NODE_ENV: test
-          MONGOMS_DOWNLOAD_DIR: ${{ secrets.test }}
+        run: npm test -- --coverage
 
+      - name: Build Application
+        run: npm run build
+
+      - name: NPM Audit
+        run: npm audit --audit-level=high
+        
       - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@v4
+        uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-build
+          path: |
+            build
+            dist
+            .next
