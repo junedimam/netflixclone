@@ -2,17 +2,21 @@ name: Frontend CI
 
 on:
   push:
-    -main
-
-  paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-ci.yml'
-  pull_request:
+    branches:
+      - main
     paths:
-      - 'frontend/**'
+      - "frontend/**"
+      - ".github/workflows/frontend-ci.yml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
 
 jobs:
-  frontend:
+  frontend-ci:
+    name: Frontend CI
     runs-on: ubuntu-latest
 
     defaults:
@@ -26,8 +30,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install Dependencies
@@ -36,10 +40,11 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      - name: Run Unit Tests
+      # Remove this step if your project doesn't have tests
+      - name: Run Tests
         run: npm test -- --watchAll=false
 
-      - name: Build Application
+      - name: Build React App
         run: npm run build
 
       - name: SonarQube Scan
@@ -49,4 +54,8 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       - name: Build Docker Image
-        run: docker build -t netflix-frontend:latest .
+        run: |
+          docker build \
+            -t netflix-frontend:${{ github.sha }} \
+            -t netflix-frontend:latest \
+            .
