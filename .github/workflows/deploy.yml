@@ -1,0 +1,55 @@
+name: Build and Push to ECR
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 158670532325.dkr.ecr.us-east-1.amazonaws.com
+  BACKEND_REPO: netflixclone-backend
+  FRONTEND_REPO: netflixclone-frontend
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push backend image to ECR
+        id: build-backend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.BACKEND_REPO }}:latest \
+                       -t $ECR_REGISTRY/${{ env.BACKEND_REPO }}:$IMAGE_TAG \
+                       ./backend
+          docker push $ECR_REGISTRY/${{ env.BACKEND_REPO }} --all-tags
+
+      - name: Build, tag, and push frontend image to ECR
+        id: build-frontend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.FRONTEND_REPO }}:latest \
+                       -t $ECR_REGISTRY/${{ env.FRONTEND_REPO }}:$IMAGE_TAG \
+                       ./frontend
+          docker push $ECR_REGISTRY/${{ env.FRONTEND_REPO }} --all-tags
