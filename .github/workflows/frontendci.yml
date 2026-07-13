@@ -42,7 +42,7 @@ jobs:
         run: npm run build
 
       - name: Build Docker Image
-        run: |
+        run: 
           docker build -t netflix-frontend:${{ github.sha }} .
 
       - name: Verify Docker Image
@@ -53,3 +53,7 @@ jobs:
         with:
           name: frontend-build
           path: frontend/dist
+          docker build \
+            -t netflix-frontend:${{ github.sha }} \
+            -t netflix-frontend:latest \
+            .
