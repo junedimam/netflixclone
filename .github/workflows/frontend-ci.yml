@@ -40,7 +40,6 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
-      # Remove this step if your project doesn't have tests
       - name: Run Tests
         run: npm test -- --watchAll=false
 
