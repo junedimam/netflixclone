@@ -35,6 +35,13 @@ backend/uploads/*
 .DS_Store
 Thumbs.db
 
+# Terraform
+terraform/.terraform*
+terraform/*.tfplan
+terraform/*.tfstate*
+terraform/crash.log
+terraform/override.tf
+
 # Logs
 logs
 *.log
