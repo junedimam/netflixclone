@@ -41,13 +41,9 @@ jobs:
       - name: Build Application
         run: npm run build
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Build Docker Image
         run: |
           docker build -t netflix-frontend:${{ github.sha }} .
-          docker tag netflix-frontend:${{ github.sha }} netflix-frontend:latest
 
       - name: Verify Docker Image
         run: docker images
