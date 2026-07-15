@@ -9,6 +9,9 @@
     "test": "jest"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1085.0",
+    "@aws-sdk/lib-storage": "^3.1085.0",
+    "@aws-sdk/s3-request-presigner": "^3.1086.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
@@ -16,7 +19,8 @@
     "jsonwebtoken": "^9.0.3",
     "mongodb-memory-server": "^9.2.0",
     "mongoose": "^8.24.1",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "multer-s3": "^3.0.1"
   },
   "devDependencies": {
     "jest": "^30.4.2",

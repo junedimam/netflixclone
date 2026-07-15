@@ -1,7 +1,6 @@
 # Step 1: Build the application using a stable LTS version
 FROM node:22-alpine AS builder
 
-ARG VITE_API_URL=""
 WORKDIR /app
 
 COPY package*.json ./
@@ -9,8 +8,6 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
-RUN VITE_API_URL=$VITE_API_URL npm run build
-RUN VITE_API_URL="$VITE_API_URL" npm run build
 RUN npm run build
 
 # Step 2: Serve the production build via Nginx

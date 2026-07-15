@@ -1,5 +1,22 @@
 {
-  "users": [],
+  "users": [
+    {
+      "_id": "1784054010039-0593dd109abfa8",
+      "isAdmin": false,
+      "createdAt": "2026-07-14T18:33:30.039Z",
+      "username": "testuser",
+      "email": "test@test.com",
+      "password": "$2a$10$F8syOt9D0MfrsWnhnVYCduUHa47Ij6D7uWCcNVmBjnVMyxGLNBhSC"
+    },
+    {
+      "_id": "1784054048259-fd409af9472a5",
+      "isAdmin": false,
+      "createdAt": "2026-07-14T18:34:08.259Z",
+      "username": "juned",
+      "email": "junedimam994@gmail.com",
+      "password": "$2a$10$OZ39s9WVaVmt0uXI1ZnIj.btRUjreN/StHgB0OzBXOebjZgJy1GR."
+    }
+  ],
   "movies": [
     {
       "_id": "open-big-buck-bunny",
