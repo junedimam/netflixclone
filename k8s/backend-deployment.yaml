@@ -33,12 +33,11 @@ spec:
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 5000
-        envFrom:
-        - configMapRef:
-            name: backend-config
         env:
         - name: MONGO_URI
           value: "mongodb://localhost:27017/netflixclone"
+        - name: PORT
+          value: "5000"
         resources:
           requests:
             memory: "128Mi"
@@ -60,7 +59,20 @@ spec:
           periodSeconds: 5
       volumes:
       - name: mongo-data
-        emptyDir: {}
+        persistentVolumeClaim:
+          claimName: mongo-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongo-pvc
+  namespace: netflixclone
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
 ---
 apiVersion: v1
 kind: Service
@@ -74,4 +86,5 @@ spec:
   - protocol: TCP
     port: 5000
     targetPort: 5000
-  type: ClusterIP
+    nodePort: 30081
+  type: NodePort
