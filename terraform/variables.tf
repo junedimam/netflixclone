@@ -51,3 +51,24 @@ variable "availability_zones" {
   description = "List of AZs to deploy into"
   default     = ["us-east-1a", "us-east-1b"]
 }
+
+variable "create_vpc" {
+  type        = bool
+  description = "Whether to create VPC and networking resources"
+  default     = true
+}
+variable "mongo_uri" {
+  type        = string
+  description = "MongoDB connection string"
+  sensitive   = true
+}
+
+variable "backend_image" {
+  type        = string
+  description = "Docker image tag for the backend service"
+}
+
+variable "frontend_image" {
+  type        = string
+  description = "Docker image tag for the frontend service"
+}

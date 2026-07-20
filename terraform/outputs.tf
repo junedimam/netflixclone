@@ -1,11 +1,6 @@
 # ═══════════════════════════════════════════════
 # SENSITIVE OUTPUTS (AWS credentials for Kind)
 # ═══════════════════════════════════════════════
-# These are printed once after terraform apply.
-# Use them to configure your Kind application:
-#   export AWS_ACCESS_KEY_ID=<value>
-#   export AWS_SECRET_ACCESS_KEY=<value>
-#   export AWS_S3_BUCKET=<value>
 
 output "aws_access_key_id" {
   description = "AWS Access Key ID for the app IAM user"
@@ -24,7 +19,7 @@ output "aws_secret_access_key" {
 # ═══════════════════════════════════════════════
 
 output "s3_bucket_name" {
-  description = "S3 bucket used for media storage — set as AWS_S3_BUCKET in your Kind deployment"
+  description = "S3 bucket used for media storage"
   value       = aws_s3_bucket.media.id
 }
 
@@ -38,12 +33,12 @@ output "s3_bucket_arn" {
 # ═══════════════════════════════════════════════
 
 output "backend_ecr_repository_url" {
-  description = "ECR repository URL for the backend image — push your Docker image here"
+  description = "ECR repository URL for the backend image"
   value       = var.create_ecr_repos ? aws_ecr_repository.backend[0].repository_url : null
 }
 
 output "frontend_ecr_repository_url" {
-  description = "ECR repository URL for the frontend image — push your Docker image here"
+  description = "ECR repository URL for the frontend image"
   value       = var.create_ecr_repos ? aws_ecr_repository.frontend[0].repository_url : null
 }
 
@@ -52,11 +47,11 @@ output "frontend_ecr_repository_url" {
 # ═══════════════════════════════════════════════
 
 output "vpc_id" {
-  description = "VPC ID (for future AWS-hosted resources connected to Kind)"
-  value       = aws_vpc.main.id
+  description = "VPC ID"
+  value       = var.create_vpc ? aws_vpc.main[0].id : null
 }
 
 output "private_subnet_ids" {
-  description = "Private subnet IDs (for future AWS-hosted resources)"
-  value       = aws_subnet.private[*].id
+  description = "Private subnet IDs"
+  value       = var.create_vpc ? aws_subnet.private[*].id : null
 }
