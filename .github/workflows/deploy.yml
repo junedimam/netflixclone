@@ -71,14 +71,14 @@ jobs:
         working-directory: ./terraform
 
       - name: Terraform Apply
-        run: |
-          terraform apply -auto-approve \
-            -var="mongo_uri=${{ secrets.MONGO_URI }}" \
-            -var="backend_image=${{ env.BACKEND_REPO }}:latest" \
-            -var="frontend_image=${{ env.FRONTEND_REPO }}:latest"
-        working-directory: ./terraform
+       working-directory: ./terraform   # <--- Make sure this line is present!
+         run: |
+           terraform apply -auto-approve \
+           -var="mongo_uri=${{ secrets.MONGO_URI }}" \
+           -var="backend_image=${{ steps.login-ecr.outputs.registry }}/netflixclone-backend:${{ github.sha }}" \
+           -var="frontend_image=${{ steps.login-ecr.outputs.registry }}/netflixclone-frontend:${{ github.sha }}"  
 
-      # Step 8: Verify rollout stability
+         # Step 8: Verify rollout stability
       - name: Wait for App Deployments to Stabilize
         run: |
           echo "Waiting for backend app rollout..."
