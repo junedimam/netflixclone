@@ -4,7 +4,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const path = require('path');
 
 const REGION = process.env.AWS_REGION || 'us-east-1';
-const BUCKET_NAME = process.env.AWS_S3_BUCKET || 'netflixclonedata';
+const BUCKET_NAME = process.env.AWS_S3_BUCKET || 'netflixclone-media-storage-bucket-simple';
 
 // Create S3 client – if no explicit credentials are provided,
 // the SDK will fall back to the default credential chain:

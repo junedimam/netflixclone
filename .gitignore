@@ -50,3 +50,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+
+# Terraform variable files
+terraform/terraform.tfvars
+**/*.tfvars
+!**/*.tfvars.example

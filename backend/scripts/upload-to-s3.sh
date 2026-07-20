@@ -19,7 +19,7 @@
 
 set -euo pipefail
 
-BUCKET="${AWS_S3_BUCKET:-netflixclonedata}"
+BUCKET="${AWS_S3_BUCKET:-netflixclone-media-storage-bucket-simple}"
 REGION="${AWS_REGION:-us-east-1}"
 
 if [ $# -lt 2 ]; then
