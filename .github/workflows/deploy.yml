@@ -27,7 +27,7 @@ jobs:
           config: kind-config.yaml
           version: v0.23.0
 
-      # Step 2: Install NGINX Ingress Controller (required by the Ingress resource)
+      # Step 2: Install NGINX Ingress Controller
       - name: Install Ingress Controller
         run: |
           kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
@@ -49,11 +49,13 @@ jobs:
           docker build -t ${{ env.BACKEND_REPO }}:latest -t ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }} ./backend
           docker build -t ${{ env.FRONTEND_REPO }}:latest -t ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }} ./frontend
 
-      # Step 5: Sideload images directly into the Kind cluster nodes (No container registry needed!)
+      # Step 5: Sideload images directly into the Kind cluster nodes
       - name: Load Images into Kind Cluster
         run: |
           kind load docker-image ${{ env.BACKEND_REPO }}:latest
+          kind load docker-image ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}
           kind load docker-image ${{ env.FRONTEND_REPO }}:latest
+          kind load docker-image ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}
 
       # Step 6: Setup Terraform CLI
       - name: Setup Terraform
@@ -61,22 +63,31 @@ jobs:
         with:
           terraform_version: 1.9.0
 
-      # Step 7: Deploy resources via Terraform using the local Kubeconfig context
+      # Step 7: Deploy resources via Terraform
       - name: Terraform Init
-        run: terraform init
         working-directory: ./terraform
+        run: terraform init
 
       - name: Terraform Validate
-        run: terraform validate
         working-directory: ./terraform
+        run: terraform validate
 
       - name: Terraform Apply
+<<<<<<< HEAD
        working-directory: ./terraform   # <--- Make sure this line is present!
          run: |
            terraform apply -auto-approve \
            -var="mongo_uri=${{ secrets.MONGO_URI }}" \
            -var="backend_image=${{ steps.login-ecr.outputs.registry }}/netflixclone-backend:${{ github.sha }}" \
            -var="frontend_image=${{ steps.login-ecr.outputs.registry }}/netflixclone-frontend:${{ github.sha }}"  
+=======
+        working-directory: ./terraform
+        run: |
+          terraform apply -auto-approve \
+            -var="mongo_uri=${{ secrets.MONGO_URI }}" \
+            -var="backend_image=${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}" \
+            -var="frontend_image=${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}"
+>>>>>>> 2040601 (fix: correct YAML syntax and step formatting in deploy workflow)
 
          # Step 8: Verify rollout stability
       - name: Wait for App Deployments to Stabilize
