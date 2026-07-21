@@ -10,6 +10,7 @@ env:
   BACKEND_REPO: netflixclone-backend
   FRONTEND_REPO: netflixclone-frontend
   IMAGE_TAG: ${{ github.sha }}
+  AWS_REGION: us-east-1
 
 jobs:
   kubernetes-deploy:
@@ -19,7 +20,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 1: Spin up a local Kubernetes cluster inside the GitHub Runner
+      # Step 1: Configure AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # Step 2: Spin up a local Kubernetes cluster inside the GitHub Runner
       - name: Create Kubernetes Kind Cluster
         uses: helm/kind-action@v1.10.0
         with:
@@ -27,7 +36,7 @@ jobs:
           config: kind-config.yaml
           version: v0.23.0
 
-      # Step 2: Install NGINX Ingress Controller
+      # Step 3: Install NGINX Ingress Controller
       - name: Install Ingress Controller
         run: |
           kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
@@ -36,34 +45,20 @@ jobs:
             --selector=app.kubernetes.io/component=controller \
             --timeout=120s
 
-      # Step 3: Test that the local cluster is online and reachable
+      # Step 4: Verify cluster health
       - name: Verify Cluster Health
         run: |
           kubectl cluster-info
           kubectl get nodes
           kubectl get pods -A
 
-      # Step 4: Build Docker images locally inside the runner
-      - name: Build Application Images Locally
-        run: |
-          docker build -t ${{ env.BACKEND_REPO }}:latest -t ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }} ./backend
-          docker build -t ${{ env.FRONTEND_REPO }}:latest -t ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }} ./frontend
-
-      # Step 5: Sideload images directly into the Kind cluster nodes
-      - name: Load Images into Kind Cluster
-        run: |
-          kind load docker-image ${{ env.BACKEND_REPO }}:latest
-          kind load docker-image ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}
-          kind load docker-image ${{ env.FRONTEND_REPO }}:latest
-          kind load docker-image ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}
-
-      # Step 6: Setup Terraform CLI
+      # Step 5: Setup Terraform CLI
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.0
 
-      # Step 7: Deploy resources via Terraform
+      # Step 6: Terraform Init, Validate, and Apply (creates AWS resources: S3, IAM, ECR)
       - name: Terraform Init
         working-directory: ./terraform
         run: terraform init
@@ -73,31 +68,75 @@ jobs:
         run: terraform validate
 
       - name: Terraform Apply
-<<<<<<< HEAD
-       working-directory: ./terraform   # <--- Make sure this line is present!
-         run: |
-           terraform apply -auto-approve \
-           -var="mongo_uri=${{ secrets.MONGO_URI }}" \
-           -var="backend_image=${{ steps.login-ecr.outputs.registry }}/netflixclone-backend:${{ github.sha }}" \
-           -var="frontend_image=${{ steps.login-ecr.outputs.registry }}/netflixclone-frontend:${{ github.sha }}"  
-=======
         working-directory: ./terraform
         run: |
           terraform apply -auto-approve \
             -var="mongo_uri=${{ secrets.MONGO_URI }}" \
             -var="backend_image=${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}" \
             -var="frontend_image=${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}"
->>>>>>> 2040601 (fix: correct YAML syntax and step formatting in deploy workflow)
 
-         # Step 8: Verify rollout stability
-      - name: Wait for App Deployments to Stabilize
+      # Step 7: Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Step 8: Build, tag and push backend image to ECR
+      - name: Build, Tag and Push Backend Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t ${{ env.BACKEND_REPO }}:latest -t ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }} ./backend
+          docker tag ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }} ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}
+          docker tag ${{ env.BACKEND_REPO }}:latest ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:latest
+
+      # Step 9: Build, tag and push frontend image to ECR
+      - name: Build, Tag and Push Frontend Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -t ${{ env.FRONTEND_REPO }}:latest -t ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }} ./frontend
+          docker tag ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }} ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}
+          docker tag ${{ env.FRONTEND_REPO }}:latest ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:latest
+
+      # Step 10: Load images into Kind cluster
+      - name: Load Images into Kind Cluster
+        run: |
+          kind load docker-image ${{ env.BACKEND_REPO }}:latest
+          kind load docker-image ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}
+          kind load docker-image ${{ env.FRONTEND_REPO }}:latest
+          kind load docker-image ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}
+
+      # Step 11: Create namespace and deploy Kubernetes manifests
+      - name: Deploy Kubernetes Manifests
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/backend-configmap.yaml
+          kubectl apply -f k8s/backend-deployment.yaml
+          kubectl apply -f k8s/backend-hpa.yaml
+          kubectl apply -f k8s/frontend-deployment.yaml
+          kubectl apply -f k8s/frontend-hpa.yaml
+          kubectl apply -f k8s/frontend-nginx-configmap.yaml
+          kubectl apply -f k8s/ingress.yaml
+
+      # Step 12: Verify rollout stability
+      - name: Wait for Deployments to Stabilize
         run: |
           echo "Waiting for backend app rollout..."
-          kubectl rollout status deployment/netflixclone-backend --timeout=90s || true
+          kubectl rollout status deployment/backend -n netflixclone --timeout=90s || true
           echo "Waiting for frontend app rollout..."
-          kubectl rollout status deployment/netflixclone-frontend --timeout=90s || true
-          
+          kubectl rollout status deployment/frontend -n netflixclone --timeout=90s || true
+
           echo "=========================================="
           echo "Current Running Pods in Kind Cluster:"
-          kubectl get pods -o wide
+          kubectl get pods -n netflixclone -o wide
+          echo "=========================================="
+          echo "All Services:"
+          kubectl get svc -n netflixclone
+          echo "=========================================="
+          echo "Ingress:"
+          kubectl get ingress -n netflixclone
           echo "=========================================="
