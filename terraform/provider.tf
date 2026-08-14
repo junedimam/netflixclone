@@ -6,14 +6,12 @@ terraform {
       version = "~> 5.0"
     }
   }
-  # Uncomment the block below to store state in S3 (recommended for teams/CI)
-  # backend "s3" {
-  #   bucket         = "netflixclone-terraform-state"
-  #   key            = "terraform.tfstate"
-  #   region         = "us-east-1"
-  #   encrypt        = true
-  #   dynamodb_table = "netflixclone-terraform-locks"
-  # }
+  backend "s3" {
+    bucket  = "netflixclone-terraform-state"
+    key     = "terraform.tfstate"
+    region  = "us-east-1"
+    encrypt = true
+  }
 }
 
 provider "aws" {
