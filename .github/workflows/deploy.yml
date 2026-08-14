@@ -1,4 +1,4 @@
-name: Build, Test Infrastructure & Deploy to Kubernetes Kind
+name: Build, Deploy to ECS Fargate
 
 on:
   push:
@@ -11,10 +11,13 @@ env:
   FRONTEND_REPO: netflixclone-frontend
   IMAGE_TAG: ${{ github.sha }}
   AWS_REGION: us-east-1
+  ECS_CLUSTER: netflixclone-cluster
+  BACKEND_SERVICE: netflixclone-backend-service
+  FRONTEND_SERVICE: netflixclone-frontend-service
 
 jobs:
-  kubernetes-deploy:
-    name: Local K8s Cluster Build & Deploy
+  build-and-deploy:
+    name: Build & Deploy to ECS Fargate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -28,29 +31,32 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # Step 2: Spin up a local Kubernetes cluster inside the GitHub Runner
-      - name: Create Kubernetes Kind Cluster
-        uses: helm/kind-action@v1.10.0
-        with:
-          cluster_name: kind
-          config: kind-config.yaml
-          version: v0.23.0
+      # Step 2: Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      # Step 3: Install NGINX Ingress Controller
-      - name: Install Ingress Controller
+      # Step 3: Build, tag and push backend image to ECR
+      - name: Build, Tag and Push Backend Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-          kubectl wait --namespace ingress-nginx \
-            --for=condition=ready pod \
-            --selector=app.kubernetes.io/component=controller \
-            --timeout=120s
+          docker build -t ${{ env.BACKEND_REPO }}:latest -t ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }} ./backend
+          docker tag ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }} ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}
+          docker tag ${{ env.BACKEND_REPO }}:latest ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:latest
 
-      # Step 4: Verify cluster health
-      - name: Verify Cluster Health
+      # Step 4: Build, tag and push frontend image to ECR
+      - name: Build, Tag and Push Frontend Image to ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          kubectl cluster-info
-          kubectl get nodes
-          kubectl get pods -A
+          docker build -t ${{ env.FRONTEND_REPO }}:latest -t ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }} ./frontend
+          docker tag ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }} ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}
+          docker tag ${{ env.FRONTEND_REPO }}:latest ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:latest
 
       # Step 5: Setup Terraform CLI
       - name: Setup Terraform
@@ -58,7 +64,7 @@ jobs:
         with:
           terraform_version: 1.9.0
 
-      # Step 6: Terraform Init, Validate, and Apply (creates AWS resources: S3, IAM, ECR)
+      # Step 6: Terraform Init, Validate, and Apply (creates VPC, ECS, ALB resources)
       - name: Terraform Init
         working-directory: ./terraform
         run: terraform init
@@ -75,68 +81,57 @@ jobs:
             -var="backend_image=${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}" \
             -var="frontend_image=${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}"
 
-      # Step 7: Login to Amazon ECR
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      # Step 8: Build, tag and push backend image to ECR
-      - name: Build, Tag and Push Backend Image to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      # Step 7: Force new deployment of ECS services
+      - name: Force Backend ECS Service Deployment
         run: |
-          docker build -t ${{ env.BACKEND_REPO }}:latest -t ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }} ./backend
-          docker tag ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }} ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}
-          docker tag ${{ env.BACKEND_REPO }}:latest ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:latest
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPO }}:latest
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.BACKEND_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }} \
+            --query 'service.{name:serviceName,status:status,desired:desiredCount,running:runningCount}' \
+            --output table
 
-      # Step 9: Build, tag and push frontend image to ECR
-      - name: Build, Tag and Push Frontend Image to ECR
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      - name: Force Frontend ECS Service Deployment
         run: |
-          docker build -t ${{ env.FRONTEND_REPO }}:latest -t ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }} ./frontend
-          docker tag ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }} ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}
-          docker tag ${{ env.FRONTEND_REPO }}:latest ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:latest
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}
-          docker push ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPO }}:latest
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.FRONTEND_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }} \
+            --query 'service.{name:serviceName,status:status,desired:desiredCount,running:runningCount}' \
+            --output table
 
-      # Step 10: Load images into Kind cluster
-      - name: Load Images into Kind Cluster
+      # Step 8: Wait for services to become stable
+      - name: Wait for ECS Services to Stabilize
         run: |
-          kind load docker-image ${{ env.BACKEND_REPO }}:latest
-          kind load docker-image ${{ env.BACKEND_REPO }}:${{ env.IMAGE_TAG }}
-          kind load docker-image ${{ env.FRONTEND_REPO }}:latest
-          kind load docker-image ${{ env.FRONTEND_REPO }}:${{ env.IMAGE_TAG }}
+          echo "Waiting for backend service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.BACKEND_SERVICE }} \
+            --region ${{ env.AWS_REGION }}
 
-      # Step 11: Create namespace and deploy Kubernetes manifests
-      - name: Deploy Kubernetes Manifests
-        run: |
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/backend-configmap.yaml
-          kubectl apply -f k8s/backend-deployment.yaml
-          kubectl apply -f k8s/backend-hpa.yaml
-          kubectl apply -f k8s/frontend-deployment.yaml
-          kubectl apply -f k8s/frontend-hpa.yaml
-          kubectl apply -f k8s/frontend-nginx-configmap.yaml
-          kubectl apply -f k8s/ingress.yaml
-
-      # Step 12: Verify rollout stability
-      - name: Wait for Deployments to Stabilize
-        run: |
-          echo "Waiting for backend app rollout..."
-          kubectl rollout status deployment/backend -n netflixclone --timeout=90s || true
-          echo "Waiting for frontend app rollout..."
-          kubectl rollout status deployment/frontend -n netflixclone --timeout=90s || true
+          echo "Waiting for frontend service to stabilize..."
+          aws ecs wait services-stable \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.FRONTEND_SERVICE }} \
+            --region ${{ env.AWS_REGION }}
 
           echo "=========================================="
-          echo "Current Running Pods in Kind Cluster:"
-          kubectl get pods -n netflixclone -o wide
+          echo "Running Tasks in ECS Cluster:"
+          aws ecs list-tasks --cluster ${{ env.ECS_CLUSTER }} --region ${{ env.AWS_REGION }}
           echo "=========================================="
-          echo "All Services:"
-          kubectl get svc -n netflixclone
+          echo "ECS Services:"
+          aws ecs describe-services \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --services ${{ env.BACKEND_SERVICE }} ${{ env.FRONTEND_SERVICE }} \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[*].{name:serviceName,status:status,running:runningCount}'
           echo "=========================================="
-          echo "Ingress:"
-          kubectl get ingress -n netflixclone
-          echo "=========================================="
+          echo "ALB Endpoint:"
+          ALB_DNS=$(aws elbv2 describe-load-balancers \
+            --names netflixclone-alb \
+            --region ${{ env.AWS_REGION }} \
+            --query 'LoadBalancers[0].DNSName' \
+            --output text)
+          echo "Application is available at: http://$ALB_DNS"

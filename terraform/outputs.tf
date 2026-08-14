@@ -80,3 +80,22 @@ output "private_route_table_id" {
   description = "Private route table ID"
   value       = var.create_vpc ? aws_route_table.private[0].id : null
 }
+
+# ═══════════════════════════════════════════════
+# ECS FARGATE
+# ═══════════════════════════════════════════════
+
+output "ecs_cluster_name" {
+  description = "ECS Fargate cluster name"
+  value       = var.create_vpc ? aws_ecs_cluster.main[0].name : null
+}
+
+output "alb_dns_name" {
+  description = "ALB DNS name for accessing the application"
+  value       = var.create_vpc ? aws_lb.main[0].dns_name : null
+}
+
+output "alb_arn" {
+  description = "ALB ARN"
+  value       = var.create_vpc ? aws_lb.main[0].arn : null
+}
