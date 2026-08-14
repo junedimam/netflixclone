@@ -151,9 +151,10 @@ The backend automatically uploads video and thumbnail files to S3 when files are
 
 ## Accessing the Deployed App
 
-After deployment completes, the ALB DNS name is displayed in the GitHub Actions logs:
+The application is deployed and accessible at:
+
 ```
-Alb DNS: netflixclone-alb-xxxxx.us-east-1.elb.amazonaws.com
+http://netflixclone-alb-829840345.us-east-1.elb.amazonaws.com
 ```
 
 Visit this URL in your browser to access the application.
