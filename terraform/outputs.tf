@@ -51,7 +51,32 @@ output "vpc_id" {
   value       = var.create_vpc ? aws_vpc.main[0].id : null
 }
 
+output "public_subnet_ids" {
+  description = "Public subnet IDs"
+  value       = var.create_vpc ? aws_subnet.public[*].id : null
+}
+
 output "private_subnet_ids" {
   description = "Private subnet IDs"
   value       = var.create_vpc ? aws_subnet.private[*].id : null
+}
+
+output "internet_gateway_id" {
+  description = "Internet Gateway ID"
+  value       = var.create_vpc ? aws_internet_gateway.main[0].id : null
+}
+
+output "nat_gateway_id" {
+  description = "NAT Gateway ID"
+  value       = var.create_vpc ? aws_nat_gateway.main[0].id : null
+}
+
+output "public_route_table_id" {
+  description = "Public route table ID"
+  value       = var.create_vpc ? aws_route_table.public[0].id : null
+}
+
+output "private_route_table_id" {
+  description = "Private route table ID"
+  value       = var.create_vpc ? aws_route_table.private[0].id : null
 }
