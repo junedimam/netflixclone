@@ -1,0 +1,90 @@
+# kube-prometheus-stack values for Netflix Clone email alerting
+# The deployment scripts create the grafana-smtp Secret at install time.
+grafana:
+  adminPassword: admin123
+  service:
+    type: NodePort
+    nodePort: 30082
+  smtp:
+    enabled: true
+    host: smtp.gmail.com:587
+    from_address: netflixclone-alerts@gmail.com
+    from_name: Netflix Clone Monitoring
+  envValueFrom:
+    GF_SMTP_USER:
+      secretKeyRef:
+        name: grafana-smtp
+        key: smtp-user
+    GF_SMTP_PASSWORD:
+      secretKeyRef:
+        name: grafana-smtp
+        key: smtp-password
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    secrets:
+      - grafana-smtp
+    configSecret: alertmanager-netflixclone
+
+# The chart renders this configuration into the Alertmanager config Secret.
+alertmanagerFiles:
+  alertmanager.yml:
+    global:
+      resolve_timeout: 5m
+      smtp_smarthost: smtp.gmail.com:587
+      smtp_from: netflixclone-alerts@gmail.com
+      smtp_auth_username: netflixclone-alerts@gmail.com
+      smtp_auth_password_file: /etc/alertmanager/secrets/grafana-smtp/smtp-password
+    route:
+      receiver: netflixclone-email
+      group_by: [alertname, namespace]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+    receivers:
+      - name: netflixclone-email
+        email_configs:
+          - to: netflixclone-alerts@gmail.com
+            send_resolved: true
+
+additionalPrometheusRulesMap:
+  netflixclone-alerts:
+    groups:
+      - name: netflixclone-application
+        rules:
+          - alert: NetflixCloneDeploymentUnavailable
+            expr: kube_deployment_status_replicas_available{namespace="netflixclone"} == 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: Netflix Clone deployment unavailable
+              description: Deployment {{ $labels.deployment }} has no available replicas.
+          - alert: NetflixClonePodCrashLooping
+            expr: max_over_time(kube_pod_container_status_waiting_reason{namespace="netflixclone",reason="CrashLoopBackOff"}[5m]) >= 1
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: Netflix Clone pod is crash looping
+              description: Pod {{ $labels.pod }} container {{ $labels.container }} is in CrashLoopBackOff.
+          - alert: NetflixClonePodNotReady
+            expr: kube_pod_status_ready{namespace="netflixclone",condition="true"} == 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: Netflix Clone pod is not ready
+              description: Pod {{ $labels.pod }} has not been ready for 10 minutes.
+
+prometheus:
+  prometheusSpec:
+    retention: 7d
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 100m
+      limits:
+        memory: 512Mi
+        cpu: 500m
